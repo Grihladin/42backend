@@ -1,112 +1,105 @@
-# 42Connect – for 42 students
+# 42Connect
 
-42Connect merges a polished Next.js dashboard with a FastAPI backend so 42 students can authenticate with their Intra account, sync active & finished projects, and request help from peers who already completed the same work. The project ships with a Docker-based setup (FastAPI, Next.js, PostgreSQL 16) for local development or self-hosted deployments.
+> **Hackathon project — built at a 42 Heilbronn hackathon.**
 
-## ✨ Highlights
+42Connect helps 42 students find the right classmate to ask for help. It signs a student in through 42 Intra, imports their current and completed projects, and matches active projects with students who have already finished them and opted in to help.
 
-- **Modern dashboard** – Dark, vertically stacked layout with progress tracking, helper availability toggle, and dedicated “Get help” view.
-- **FastAPI backend** – Handles the 42 OAuth2 flow, stores synced students/projects in PostgreSQL, and exposes helper matching.
-- **Ready to containerize** – Dockerfiles for frontend/backend plus a `docker-compose.yml` that seeds the database and starts all services.
-- **Type-safe frontend** – React 18 + Next.js App Router with linting, TypeScript, and custom hooks for session/profile state.
+This repository is a time-boxed hackathon prototype. It demonstrates the product idea and a working full-stack implementation rather than a production-ready social platform.
 
-## 📁 Project structure
+## The problem
 
-```
-.
-├── backend/        # FastAPI application (Python 3.11, asyncpg, SQLAlchemy 2)
-├── frontend/       # Next.js 14 App Router UI (React 18)
-├── docker-compose.yml
-└── docs/           # Additional docs (schema reference, etc.)
-```
+At 42, students learn from one another, but finding someone with relevant experience often depends on already knowing whom to ask. 42Connect turns project history into a lightweight peer-support network:
 
-## 🚀 Quick start (Docker Compose)
+1. Sign in with a 42 Intra account.
+2. Sync current and completed projects from the 42 API.
+3. Mark yourself as available to help and describe your current “vibe.”
+4. Find students who completed a project you are currently working on.
+5. Discover peers with similar interests through vibe matching.
 
-1. **Set secrets**
-   - Copy `backend/.env` (or create one) and populate:
-     - `FORTYTWO_CLIENT_ID`, `FORTYTWO_CLIENT_SECRET`
-     - `SESSION_SECRET_KEY`
-     - Optional overrides for cookie domain/secure flags
+## What the prototype includes
 
-2. **Launch the stack**
+- 42 OAuth2 authentication and signed cookie sessions
+- Automatic profile, cursus, and project synchronization from the 42 API
+- Dashboard for current projects, completed projects, marks, and progress
+- Helper matching by shared project
+- Opt-in “ready to help” preference
+- Text-based vibe matching between students
+- PostgreSQL persistence
+- Dockerized frontend, backend, and database
 
-   ```bash
-   docker compose up --build
-   ```
+## Technology stack
 
-   Services:
-   - `db`: PostgreSQL 16 with persistent volume
-   - `backend`: FastAPI on <http://168.119.52.144:8000>, auto-runs `python -m app.manage init-db`
-   - `frontend`: Next.js on <http://168.119.52.144:3000>, configured to call the backend
-
-3. **Sign in**
-   - Visit <http://168.119.52.144:3000>
-   - Click **Get help** or the login CTA to authenticate via 42 Intra
-
-> Re-run with `docker compose down` / `up --build` after changes. Logs are viewable via `docker compose logs -f backend` (or `frontend`, `db`).
-
-## 🛠️ Manual setup
-
-### Backend
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m app.manage init-db
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Environment variables (see `backend/.env`):
-
-| Variable | Description |
+| Area | Technologies |
 | --- | --- |
-| `FORTYTWO_CLIENT_ID` / `FORTYTWO_CLIENT_SECRET` | OAuth credentials from the 42 developer portal |
-| `FORTYTWO_REDIRECT_URI` | Typically `http://168.119.52.144:8000/auth/callback` |
-| `FRONTEND_APP_URL` | Allowed origin for CORS (default `http://168.119.52.144:3000`) |
-| `SESSION_SECRET_KEY` | Random string for signing session cookies |
-| `DATABASE_URL` | Asyncpg connection string, e.g. `postgresql+asyncpg://app:app@localhost:5432/fortytwo_app` |
+| Frontend | Next.js 14, React 18, TypeScript, CSS |
+| Backend | Python 3.11, FastAPI, Pydantic |
+| Authentication | 42 Intra OAuth2, Authlib, signed HTTP-only cookies |
+| Data | PostgreSQL 16, SQLAlchemy 2, asyncpg |
+| Integration | 42 API, HTTPX |
+| Infrastructure | Docker, Docker Compose |
 
-### Frontend
+## Architecture
 
-```bash
-cd frontend
-npm install
-npm run dev
+```text
+Next.js frontend
+        |
+        | REST + session cookie
+        v
+FastAPI backend ---- OAuth/API requests ----> 42 Intra
+        |
+        | SQLAlchemy + asyncpg
+        v
+   PostgreSQL
 ```
 
-Optionally set `NEXT_PUBLIC_AUTH_BASE_URL` (default `http://168.119.52.144:8000`) in `frontend/.env.local`.
+The backend imports a student's 42 profile and project records after login. For each active project, it searches the local database for opted-in students who have completed the same project. See [`docs/schema.md`](docs/schema.md) for the data model.
 
-## 🧭 Key features
+## Run locally
 
-- **Session-aware dashboard** – Welcomes returning students, surfaces project statistics, and exposes helper availability.
-- **Helpers directory** – `/helpers` route lists classmates who recently completed matching projects (sorted by completion date).
-- **Preference toggles** – Students can opt into helping others via a checkbox that updates backend state.
-- **Project normalization** – Keeps CPP modules and other special cases readable by stripping stray percent suffixes while preserving identifiers.
+### 1. Configure the backend
 
-## 🧱 Database schema
+Copy the provided template:
 
-SQLAlchemy models live in `backend/app/models.py`, covering:
+```bash
+cp backend/.env.example backend/.env
+```
 
-- `students` – Profile, campus, vibe, helper preference
-- `projects` – Current/finished projects with progress, validation status, timestamps
-- `cursus_enrollments` – Historical cursus data
+Set at least:
 
-Run `python -m app.manage drop-db` followed by `init-db` if migrations are not yet applied after schema changes.
+```dotenv
+FORTYTWO_CLIENT_ID=your_42_oauth_client_id
+FORTYTWO_CLIENT_SECRET=your_42_oauth_client_secret
+FORTYTWO_REDIRECT_URI=http://localhost:8000/auth/callback
+FRONTEND_APP_URL=http://localhost:3000
+SESSION_SECRET_KEY=replace_with_a_long_random_value
+DATABASE_URL=postgresql+asyncpg://app:app@db:5432/fortytwo_app
+```
 
-## 🛡️ Production checklist
+The callback URL must also be registered in your 42 API application.
 
-- Serve behind HTTPS and set `SESSION_COOKIE_SECURE=true`
-- Store secrets outside the repo (env vars, secret manager)
-- Add alembic/SQL migrations before evolving the schema in production
-- Harden containers (non-root user, pinned digests, `npm install sharp` for Next.js image optimization)
-- Add monitoring (logs, metrics) and a reverse proxy (nginx/Traefik) for TLS termination
+### 2. Use local service URLs
 
-## 🤝 Contributing
+The current `docker-compose.yml` contains the original demo server address. Before running locally, replace `http://168.119.52.144:8000` with `http://localhost:8000` and `http://168.119.52.144:3000` with `http://localhost:3000`.
 
-1. Fork & clone
-2. Create a feature branch
-3. Run `npm run lint` (frontend) and `pip install -r requirements.txt && python -m compileall` (backend sanity)
-4. Submit a PR describing the change and any DB schema impacts
+### 3. Start the application
 
-Issues and feature requests are welcome via GitHub Issues. Let’s make 42Connect the go-to personal project pulse for the 42 community! 💙
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:3000>. The API is available at <http://localhost:8000>.
+
+## Repository structure
+
+```text
+.
+├── backend/            # FastAPI API, OAuth flow, sync logic, and models
+├── frontend/           # Next.js dashboard and helper views
+├── docs/schema.md      # Database schema documentation
+├── docker-compose.yml  # PostgreSQL, backend, and frontend services
+└── 42Quackform/        # Separate experimental prototype retained from the event
+```
+
+## Hackathon status
+
+The core demo flow is implemented. Before production use, the project would need database migrations, automated tests, improved secret management, HTTPS, stronger deployment configuration, and a proper way for matched students to contact one another.
